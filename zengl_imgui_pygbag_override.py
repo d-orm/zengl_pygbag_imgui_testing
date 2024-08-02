@@ -47,7 +47,9 @@ class OpenGL:
         self.glBufferData = stolen_symbols.zengl_glBufferData
         self.glDrawElementsInstanced = stolen_symbols.zengl_glDrawElementsInstanced
 
-zengl_imgui.OpenGL = OpenGL
-zengl._extern_gl = zengl._extern_gl.replace('return {', 'return { zengl_glScissor(x, y, w, h) { gl.scissor(x, y, w, h); },')
-_zengl.web_context_pyodide = web_context_pyodide
-ctx = zengl.context()
+if zengl._extern_gl:
+    zengl_imgui.OpenGL = OpenGL
+    zengl._extern_gl = zengl._extern_gl.replace('return {', 'return { zengl_glScissor(x, y, w, h) { gl.scissor(x, y, w, h); },')
+    zengl._extern_gl = zengl._extern_gl.replace('gl.bufferData(target, size, usage);', 'gl.bufferData(target, size, usage); gl.bufferSubData(target, 0, wasm.HEAPU8.subarray(data, data + size));')
+    _zengl.web_context_pyodide = web_context_pyodide
+    ctx = zengl.context()

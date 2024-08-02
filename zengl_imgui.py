@@ -160,9 +160,7 @@ class PygameBackend:
         return self.renderer.render()
 
     def process_event(self, event):
-        # return self.input_handler.process_event(event)
-        pass
+        return self.input_handler.process_event(event)
 
     def process_inputs(self):
-        # return self.input_handler.process_inputs()
-        pass
+        return self.input_handler.process_inputs()
