@@ -5,6 +5,8 @@
 # ]
 # ///
 
+import zengl_imgui_pygbag_override
+
 import asyncio
 from zengl_imgui import PygameBackend
 import imgui_demo_frame

@@ -1,67 +1,7 @@
 import struct
+
 import imgui
 import zengl
-import _zengl
-import pygame
-import platform
-import sys
-
-stolen_symbols = None
-
-def web_context_pyodide():
-    class m_canvas:
-        def getCanvas3D(self, name='canvas',width=0,height=0):
-            canvas = platform.document.getElementById(name)
-            try:
-                width = width or canvas.width
-                height = height or canvas.height
-                #print(f"canvas size was previously set to : {width=} x {height=}")
-            except:
-                pass
-            canvas.width = width or 1024
-            canvas.height = height or 1024
-            return canvas
-
-    class m_pyodide_js:
-        canvas = m_canvas()
-        _module = platform.window
-
-    sys.modules["pyodide_js"] = m_pyodide_js()
-    del m_canvas
-    del m_pyodide_js
-    import js
-    import pyodide_js
-
-    canvas = pyodide_js.canvas.getCanvas3D()
-    if canvas is None:
-        canvas = js.document.getElementById('canvas')
-    if canvas is None:
-        canvas = js.document.createElement('canvas')
-        canvas.id = 'canvas'
-        canvas.style.position = 'fixed'
-        canvas.style.top = '0'
-        canvas.style.right = '0'
-        canvas.style.zIndex = '10'
-        js.document.body.appendChild(canvas)
-        pyodide_js.canvas.setCanvas3D(canvas)
-    gl = canvas.getContext(
-        'webgl2',
-        'high-performance',
-        False,
-        False,
-        False,
-        False,
-        False,
-    )
-    callback = js.window.eval(zengl._extern_gl)
-    symbols = callback(pyodide_js._module, gl)
-    pyodide_js._module.mergeLibSymbols(symbols)
-    global stolen_symbols
-    stolen_symbols = symbols
-
-
-zengl._extern_gl = zengl._extern_gl.replace('return {', 'return { zengl_glScissor(x, y, w, h) { gl.scissor(x, y, w, h); },')
-_zengl.web_context_pyodide = web_context_pyodide
 
 
 class OpenGL:
@@ -74,15 +14,17 @@ class OpenGL:
     GL_UNSIGNED_INT = 0x1405
     GL_SCISSOR_TEST = 0x0c11
 
-    def __init__(self, load):
-        self.glEnable = stolen_symbols.zengl_glEnable
-        self.glDisable = stolen_symbols.zengl_glDisable
-        self.glScissor = stolen_symbols.zengl_glScissor
-        self.glActiveTexture = stolen_symbols.zengl_glActiveTexture
-        self.glBindTexture = stolen_symbols.zengl_glBindTexture
-        self.glBindBuffer = stolen_symbols.zengl_glBindBuffer
-        self.glBufferData = stolen_symbols.zengl_glBufferData
-        self.glDrawElements = stolen_symbols.zengl_glDrawElements
+    def __init__(self):
+        from ctypes import CFUNCTYPE, c_int, c_ssize_t, c_void_p, cast
+        load = zengl.default_loader.load_opengl_function
+        self.glEnable = cast(load('glEnable'), CFUNCTYPE(None, c_int))
+        self.glDisable = cast(load('glDisable'), CFUNCTYPE(None, c_int))
+        self.glScissor = cast(load('glScissor'), CFUNCTYPE(None, c_int, c_int, c_int, c_int))
+        self.glActiveTexture = cast(load('glActiveTexture'), CFUNCTYPE(None, c_int))
+        self.glBindTexture = cast(load('glBindTexture'), CFUNCTYPE(None, c_int, c_int))
+        self.glBindBuffer = cast(load('glBindBuffer'), CFUNCTYPE(None, c_int, c_int))
+        self.glBufferData = cast(load('glBufferData'), CFUNCTYPE(None, c_int, c_ssize_t, c_void_p, c_int))
+        self.glDrawElementsInstanced = cast(load('glDrawElementsInstanced'), CFUNCTYPE(None, c_int, c_int, c_int, c_void_p, c_int))
 
 
 class ZenGLRenderer:
@@ -96,10 +38,16 @@ class ZenGLRenderer:
         width, height, pixels = self.io.fonts.get_tex_data_as_rgba32()
         self.atlas = self.ctx.image((width, height), 'rgba8unorm', pixels)
 
+        version = '#version 330 core'
+        if 'WebGL' in self.ctx.info['version'] or 'OpenGL ES' in self.ctx.info['version']:
+            version = '#version 300 es\nprecision highp float;'
+
         self.pipeline = self.ctx.pipeline(
+            includes={
+                'version': version,
+            },
             vertex_shader='''
-                #version 300 es
-                precision highp float;
+                #include "version"
                 uniform vec2 Scale;
                 layout (location = 0) in vec2 in_vertex;
                 layout (location = 1) in vec2 in_uv;
@@ -114,8 +62,7 @@ class ZenGLRenderer:
                 }
             ''',
             fragment_shader='''
-                #version 300 es
-                precision highp float;
+                #include "version"
                 uniform sampler2D Texture;
                 in vec2 v_uv;
                 in vec4 v_color;
@@ -152,7 +99,7 @@ class ZenGLRenderer:
             instance_count=0,
         )
 
-        self.gl = OpenGL(zengl.default_loader.load_opengl_function)
+        self.gl = OpenGL()
         self.vtx_buffer = zengl.inspect(self.vertex_buffer)['buffer']
         self.idx_buffer = zengl.inspect(self.index_buffer)['buffer']
         self.io.fonts.texture_id = zengl.inspect(self.atlas)['texture']
@@ -188,38 +135,34 @@ class ZenGLRenderer:
                 x1, y1, x2, y2 = command.clip_rect
                 gl.glScissor(int(x1), int(fb_height - y2), int(x2 - x1), int(y2 - y1))
                 gl.glBindTexture(gl.GL_TEXTURE_2D, command.texture_id)
-                gl.glDrawElements(gl.GL_TRIANGLES, command.elem_count, gl.GL_UNSIGNED_INT, idx_buffer_offset)
+                gl.glDrawElementsInstanced(gl.GL_TRIANGLES, command.elem_count, gl.GL_UNSIGNED_INT, idx_buffer_offset, 1)
                 idx_buffer_offset += command.elem_count * imgui.INDEX_SIZE
         gl.glDisable(gl.GL_SCISSOR_TEST)
 
 
 class PygameBackend:
     def __init__(self):
-        # from imgui.integrations.pygame import PygameRenderer
-        # class PygameInputHandler(PygameRenderer):
-        #     def __init__(self):
-        #         self._gui_time = None
-        #         self.custom_key_map = {}
-        #         try:
-        #             imgui.get_io()
-        #         except:
-        #             imgui.create_context()
-        #         self.io = imgui.get_io()
-        #         self.io.display_size = pygame.display.get_window_size()
-        #         self._map_keys()
-        # self.input_handler = PygameInputHandler()
-        imgui.create_context()
-        self.io = imgui.get_io()
-        self.io.display_size = pygame.display.get_window_size()
+        import pygame
+        from imgui.integrations.pygame import PygameRenderer
+        class PygameInputHandler(PygameRenderer):
+            def __init__(self):
+                self._gui_time = None
+                self.custom_key_map = {}
+                imgui.create_context()
+                self.io = imgui.get_io()
+                self.io.display_size = pygame.display.get_window_size()
+                self._map_keys()
+
+        self.input_handler = PygameInputHandler()
         self.renderer = ZenGLRenderer()
 
     def render(self):
         return self.renderer.render()
 
     def process_event(self, event):
-        pass
         # return self.input_handler.process_event(event)
+        pass
 
     def process_inputs(self):
-        pass
         # return self.input_handler.process_inputs()
+        pass
