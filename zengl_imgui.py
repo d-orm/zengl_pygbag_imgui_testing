@@ -15,16 +15,28 @@ class OpenGL:
     GL_SCISSOR_TEST = 0x0c11
 
     def __init__(self):
-        from ctypes import CFUNCTYPE, c_int, c_ssize_t, c_void_p, cast
-        load = zengl.default_loader.load_opengl_function
-        self.glEnable = cast(load('glEnable'), CFUNCTYPE(None, c_int))
-        self.glDisable = cast(load('glDisable'), CFUNCTYPE(None, c_int))
-        self.glScissor = cast(load('glScissor'), CFUNCTYPE(None, c_int, c_int, c_int, c_int))
-        self.glActiveTexture = cast(load('glActiveTexture'), CFUNCTYPE(None, c_int))
-        self.glBindTexture = cast(load('glBindTexture'), CFUNCTYPE(None, c_int, c_int))
-        self.glBindBuffer = cast(load('glBindBuffer'), CFUNCTYPE(None, c_int, c_int))
-        self.glBufferData = cast(load('glBufferData'), CFUNCTYPE(None, c_int, c_ssize_t, c_void_p, c_int))
-        self.glDrawElementsInstanced = cast(load('glDrawElementsInstanced'), CFUNCTYPE(None, c_int, c_int, c_int, c_void_p, c_int))
+        if not zengl._extern_gl:
+            from ctypes import CFUNCTYPE, c_int, c_ssize_t, c_void_p, cast
+            load = zengl.default_loader.load_opengl_function
+            self.glEnable = cast(load('glEnable'), CFUNCTYPE(None, c_int))
+            self.glDisable = cast(load('glDisable'), CFUNCTYPE(None, c_int))
+            self.glScissor = cast(load('glScissor'), CFUNCTYPE(None, c_int, c_int, c_int, c_int))
+            self.glActiveTexture = cast(load('glActiveTexture'), CFUNCTYPE(None, c_int))
+            self.glBindTexture = cast(load('glBindTexture'), CFUNCTYPE(None, c_int, c_int))
+            self.glBindBuffer = cast(load('glBindBuffer'), CFUNCTYPE(None, c_int, c_int))
+            self.glBufferData = cast(load('glBufferData'), CFUNCTYPE(None, c_int, c_ssize_t, c_void_p, c_int))
+            self.glDrawElementsInstanced = cast(load('glDrawElementsInstanced'), CFUNCTYPE(None, c_int, c_int, c_int, c_void_p, c_int))
+        else:
+            import _zengl
+            _zengl.gl_symbols
+            self.glEnable = _zengl.gl_symbols.zengl_glEnable
+            self.glDisable = _zengl.gl_symbols.zengl_glDisable
+            self.glScissor = _zengl.gl_symbols.zengl_glScissor
+            self.glActiveTexture = _zengl.gl_symbols.zengl_glActiveTexture
+            self.glBindTexture = _zengl.gl_symbols.zengl_glBindTexture
+            self.glBindBuffer = _zengl.gl_symbols.zengl_glBindBuffer
+            self.glBufferData = _zengl.gl_symbols.zengl_glBufferData
+            self.glDrawElementsInstanced = _zengl.gl_symbols.zengl_glDrawElementsInstanced
 
 
 class ZenGLRenderer:
