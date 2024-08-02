@@ -148,7 +148,8 @@ class PygameBackend:
             def __init__(self):
                 self._gui_time = None
                 self.custom_key_map = {}
-                imgui.create_context()
+                if not imgui.get_current_context():
+                    imgui.create_context()
                 self.io = imgui.get_io()
                 self.io.display_size = pygame.display.get_window_size()
                 self._map_keys()
