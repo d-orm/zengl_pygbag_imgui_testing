@@ -357,7 +357,7 @@ def web_context_pyodide():
     import js
     import zengl
     zengl._extern_gl = zengl._extern_gl.replace('return {', 'return { zengl_glScissor(x, y, w, h) { gl.scissor(x, y, w, h); },')
-    zengl._extern_gl = zengl._extern_gl.replace('gl.bufferData(target, size, usage)', 'gl.bufferData(target, wasm.HEAPU8.subarray(data, data + size), usage)')
+    zengl._extern_gl = zengl._extern_gl.replace('gl.bufferData(target, size, usage)', 'gl.bufferData(target, data ? wasm.HEAPU8.subarray(data, data + size) : size, usage)')
     options = js.window.JSON.parse('{"powerPreference": "high-performance", "premultipliedAlpha": false, "antialias": false, "alpha": false, "depth": false, "stencil": false}')
     canvas = js.document.getElementById('canvas')
     gl = canvas.getContext('webgl2', options)
